@@ -1,0 +1,20 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NzSN <aydenlin@foxmail.com>
+Date: Fri, 16 Jun 2023 07:45:12 +0000
+Subject: Increase size of V8-Heap to 16GB
+
+Require by application
+
+diff --git a/gin/v8_initializer.cc b/gin/v8_initializer.cc
+index 76dcbe2873f3e995cc612cbcd7eba60f236f655d..db15a0451a45f9aeddb10dde237ce31944c06e4c 100644
+--- a/gin/v8_initializer.cc
++++ b/gin/v8_initializer.cc
+@@ -377,6 +377,8 @@ void SetFlags(IsolateHolder::ScriptMode mode,
+                          "--experimental-wasm-inlining",
+                          "--no-experimental-wasm-inlining");
+ 
++  SetV8Flags("--max-old-space-size=16384");
++
+   if (js_command_line_flags.empty())
+     return;
+ 
