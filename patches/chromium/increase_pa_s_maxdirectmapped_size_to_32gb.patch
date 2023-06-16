@@ -1,0 +1,106 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NzSN <aydenlin@foxmail.com>
+Date: Fri, 16 Jun 2023 07:16:08 +0000
+Subject: Increase PA's MaxDirectMapped size to 32GB
+
+Application require to use typedarray that larger thatn at least 16GB.
+
+diff --git a/base/allocator/partition_allocator/partition_alloc.cc b/base/allocator/partition_allocator/partition_alloc.cc
+index c4c582a043ae9cc5201269906ea0395d7ffbe65d..7aee0463bc16b796ac95150205ec18037e43ac3d 100644
+--- a/base/allocator/partition_allocator/partition_alloc.cc
++++ b/base/allocator/partition_allocator/partition_alloc.cc
+@@ -60,10 +60,10 @@ void PartitionAllocGlobalInit(OomFunction on_out_of_memory) {
+       "page metadata fits in hole");
+ 
+   // Limit to prevent callers accidentally overflowing an int size.
+-  STATIC_ASSERT_OR_PA_CHECK(
+-      internal::MaxDirectMapped() <=
+-          (1UL << 31) + internal::DirectMapAllocationGranularity(),
+-      "maximum direct mapped allocation");
++  // STATIC_ASSERT_OR_PA_CHECK(
++  //     internal::MaxDirectMapped() <=
++  //         (1UL << 31) + internal::DirectMapAllocationGranularity(),
++  //     "maximum direct mapped allocation");
+ 
+   // Check that some of our zanier calculations worked out as expected.
+   static_assert(internal::kSmallestBucket == internal::kAlignment,
+diff --git a/base/allocator/partition_allocator/partition_alloc_constants.h b/base/allocator/partition_allocator/partition_alloc_constants.h
+index b817a24c677beb2a9700ea165de5c5a8a3e11f8c..c3b470722f1446a455a162e45b714c5c3af156bd 100644
+--- a/base/allocator/partition_allocator/partition_alloc_constants.h
++++ b/base/allocator/partition_allocator/partition_alloc_constants.h
+@@ -296,7 +296,7 @@ constexpr size_t kNumPools = kMaxPoolHandle - 1;
+ #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS) || PA_CONFIG(POINTER_COMPRESSION)
+ constexpr size_t kPoolMaxSize = 8 * kGiB;
+ #else
+-constexpr size_t kPoolMaxSize = 16 * kGiB;
++constexpr size_t kPoolMaxSize = 32 * kGiB;
+ #endif
+ #else  // BUILDFLAG(HAS_64_BIT_POINTERS)
+ constexpr size_t kPoolMaxSize = 4 * kGiB;
+@@ -412,10 +412,10 @@ constexpr size_t kMinDirectMappedDownsize = kMaxBucketed + 1;
+ // The definition of MaxDirectMapped does only depend on constants that are
+ // unconditionally constexpr. Therefore it is not necessary to use
+ // PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR here.
+-PA_ALWAYS_INLINE constexpr size_t MaxDirectMapped() {
++PA_ALWAYS_INLINE constexpr int64_t MaxDirectMapped() {
+   // Subtract kSuperPageSize to accommodate for granularity inside
+   // PartitionRoot::GetDirectMapReservationSize.
+-  return (1UL << 31) - kSuperPageSize;
++  return (1ULL << 35) - kSuperPageSize;
+ }
+ 
+ // Max alignment supported by AlignedAllocWithFlags().
+diff --git a/base/allocator/partition_allocator/partition_bucket.h b/base/allocator/partition_allocator/partition_bucket.h
+index eda607b0b25436591f16d55a4701db4fbb8424de..ad3b2d43a0c1062200d9956ec5fad5061d67f6f7 100644
+--- a/base/allocator/partition_allocator/partition_bucket.h
++++ b/base/allocator/partition_allocator/partition_bucket.h
+@@ -37,7 +37,7 @@ struct PartitionBucket {
+ 
+   SlotSpanMetadata<thread_safe>* empty_slot_spans_head;
+   SlotSpanMetadata<thread_safe>* decommitted_slot_spans_head;
+-  uint32_t slot_size;
++  uint64_t slot_size;
+   uint32_t num_system_pages_per_slot_span
+       : kPartitionNumSystemPagesPerSlotSpanBits;
+   uint32_t num_full_slot_spans : 24;
+diff --git a/sandbox/policy/linux/sandbox_linux.cc b/sandbox/policy/linux/sandbox_linux.cc
+index 5dbb628a744a9baa2c4fa61ff353712d574a84f6..2271d7cc9b34c8657afeaa54a264fef34c796840 100644
+--- a/sandbox/policy/linux/sandbox_linux.cc
++++ b/sandbox/policy/linux/sandbox_linux.cc
+@@ -478,6 +478,8 @@ rlim_t GetProcessDataSizeLimit(sandbox::mojom::Sandbox sandbox_type) {
+     } else if (sandbox_type == sandbox::mojom::Sandbox::kGpu &&
+                physical_memory > 32 * GB) {
+       return 32 * GB;
++    }  else if (physical_memory > 32 * GB) {
++      return 32 * GB;
+     } else if (physical_memory > 16 * GB) {
+       return 16 * GB;
+     } else {
+diff --git a/sandbox/policy/win/sandbox_win.cc b/sandbox/policy/win/sandbox_win.cc
+index 75583cf3fa070f1ca42cce74825147175bd0c683..dce627c07df37f6d57bf19e70ec428cbefffec86 100644
+--- a/sandbox/policy/win/sandbox_win.cc
++++ b/sandbox/policy/win/sandbox_win.cc
+@@ -455,6 +455,8 @@ void SetJobMemoryLimit(Sandbox sandbox_type, TargetConfig* config) {
+       memory_limit = 64 * GB;
+     } else if (sandbox_type == Sandbox::kGpu && physical_memory > 32 * GB) {
+       memory_limit = 32 * GB;
++    }  else if (physical_memory > 32 * GB) {
++      memory_limit = 32 * GB;
+     } else if (physical_memory > 16 * GB) {
+       memory_limit = 16 * GB;
+     } else {
+diff --git a/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc b/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc
+index 0a575fd624b4b9c97ff7e4e68b5c8bdeb8e9c350..037ab396d2e091e6e91e77cc728582f55b591c38 100644
+--- a/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc
++++ b/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc
+@@ -54,8 +54,8 @@ Vector<uint8_t> StaticBitmapImage::CopyImageData(const SkImageInfo& info,
+ 
+   wtf_size_t byte_length =
+       base::checked_cast<wtf_size_t>(info.computeMinByteSize());
+-  if (byte_length > partition_alloc::MaxDirectMapped())
+-    return {};
++  // if (byte_length > partition_alloc::MaxDirectMapped())
++  //  return {};
+   Vector<uint8_t> dst_buffer(byte_length);
+ 
+   bool read_pixels_successful =
