@@ -1,0 +1,20 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: frankpian <bianyongfang@vip.qq.com>
+Date: Tue, 20 Jun 2023 11:29:58 +0800
+Subject: V8-TypedArray length increase
+
+Increase V8-TypedArray maximum length which required to disable pointer compress.
+
+diff --git a/include/v8-typed-array.h b/include/v8-typed-array.h
+index 483b4f772ffa817d41aa9a7bdb7bc264d93448c6..1b39177d9c14f690145b93d618714f64fab7bbc3 100644
+--- a/include/v8-typed-array.h
++++ b/include/v8-typed-array.h
+@@ -25,7 +25,7 @@ class V8_EXPORT TypedArray : public ArrayBufferView {
+   static constexpr size_t kMaxLength =
+       internal::kApiSystemPointerSize == 4
+           ? internal::kSmiMaxValue
+-          : static_cast<size_t>(uint64_t{1} << 32);
++          : static_cast<size_t>(uint64_t{1} << 35);
+ 
+   /**
+    * Number of elements in this typed array
