@@ -11,3 +11,5 @@ chore_allow_customizing_microtask_policy_per_context.patch
 build_revert_builtins_pgo.patch
 add_reporter.patch
 v8-typedarray_length_increase.patch
+fix_erros.patch
+implement_memorystatus_reporters_and_new_builtin.patch

@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NzSN <aydenlin@foxmail.com>
+Date: Mon, 21 Aug 2023 15:28:45 +0800
+Subject: FIX ERROS
+
+redefinition error after migrate from linux
+
+diff --git a/src/Reporter/receiver.h b/src/Reporter/receiver.h
+index 89681318bdd00d8db20b6bf239ed734d79485e47..68b49e69450d51f4493c04de7808eb486c09ed66 100644
+--- a/src/Reporter/receiver.h
++++ b/src/Reporter/receiver.h
+@@ -4,10 +4,11 @@
+ #include "third_party/informer/src/receiver-inl.h"
+ #include "third_party/jsoncpp/source/include/json/json.h"
+ 
+-#include "reporter.h"
+ 
+ #if BUILDFLAG(IS_WIN)
+ #include "reporter-win.h"
++#else
++#include "reporter.h"
+ #endif
+ 
+ namespace v8 {
+diff --git a/src/Reporter/reporter-win.h b/src/Reporter/reporter-win.h
+index 3a3be8edf235648e4861070abd1191d7162c08c7..0c04381fd39eb20d0270951f60cba73a593b980c 100644
+--- a/src/Reporter/reporter-win.h
++++ b/src/Reporter/reporter-win.h
+@@ -12,7 +12,7 @@ namespace Reporter {
+ 
+ 
+ struct WinMemoryStatusReporter: public Informer::Reporter<Json::Value> {
+-  constexpr static const std::string ID = "WinMemoryStatus";
++  constexpr static char ID[] = "WinMemoryStatus";
+   constexpr static unsigned DIV = 1024;
+ 
+   WinMemoryStatusReporter(): Informer::Reporter<Json::Value>(ID) {}

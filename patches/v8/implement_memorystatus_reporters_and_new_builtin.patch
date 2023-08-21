@@ -1,0 +1,106 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NzSN <aydenlin@foxmail.com>
+Date: Mon, 21 Aug 2023 16:40:51 +0800
+Subject: Implement MemoryStatus Reporters and new builtin
+
+Implement MemoryStatus on windows platform and provide REPORTER.GetReports()
+builtin which allow caller to pulling reports from all registered reporter.
+
+diff --git a/src/Reporter/receiver.h b/src/Reporter/receiver.h
+index 68b49e69450d51f4493c04de7808eb486c09ed66..6053bfb3c7081a26bc69b7b2e71d86a009493e98 100644
+--- a/src/Reporter/receiver.h
++++ b/src/Reporter/receiver.h
+@@ -33,7 +33,7 @@ public:
+     (*instance)->addReporter(std::make_unique<TrivialReporter>());
+ 
+     // Register Reporter to Receiver
+-    // instance.addReporter(std::make_unique<MemoryStatusReporter>());
++    (*instance)->addReporter(std::make_unique<MemoryStatusReporter>());
+   }
+ private:
+   static Informer::Receiver<Json::Value>** GetInstanceInternal() {
+diff --git a/src/Reporter/reporter-win.h b/src/Reporter/reporter-win.h
+index 0c04381fd39eb20d0270951f60cba73a593b980c..5ab40d8a0778b07967b29144241199106171bad4 100644
+--- a/src/Reporter/reporter-win.h
++++ b/src/Reporter/reporter-win.h
+@@ -31,7 +31,7 @@ struct WinMemoryStatusReporter: public Informer::Reporter<Json::Value> {
+     // Build json and return to caller
+     report["total"]   = std::to_string(statex.ullTotalPhys/DIV) + " KB";
+     report["free"]    = std::to_string(statex.ullAvailPhys/DIV) + " KB";
+-    report["precent"] = std::to_string(statex.dwMemoryLoad/DIV) + " KB";
++    report["precent"] = std::to_string(statex.dwMemoryLoad) + "%";
+ 
+     return report;
+   }
+diff --git a/src/builtins/builtins-definitions.h b/src/builtins/builtins-definitions.h
+index a934be71d546143db74723b3a991ca589c763cdf..ed061d1d3bd4fd4c7309bc95ba4947a81f2f5ec6 100644
+--- a/src/builtins/builtins-definitions.h
++++ b/src/builtins/builtins-definitions.h
+@@ -632,6 +632,7 @@ namespace internal {
+                                                                                \
+   /* REPORTER */                                                               \
+   CPP(GetReport)                                                               \
++  CPP(GetReports)                                                              \
+                                                                                \
+   /* ICs */                                                                    \
+   TFH(LoadIC, LoadWithVector)                                                  \
+diff --git a/src/builtins/builtins-informer.cc b/src/builtins/builtins-informer.cc
+index aa2172121a93e22c35c11f49964ecef9be9f6a43..e30e794fcdc5b18eaee0d067d2ac6d93f856f4ca 100644
+--- a/src/builtins/builtins-informer.cc
++++ b/src/builtins/builtins-informer.cc
+@@ -3,6 +3,7 @@
+ #include <string>
+ #include <optional>
+ #include <algorithm>
++#include <utility>
+ #include "src/execution/isolate.h"
+ #include "src/builtins/builtins-utils-inl.h"
+ #include "src/builtins/builtins.h"
+@@ -59,6 +60,34 @@ std::optional<Handle<JSObject>> ConvertJSONToJSObject(
+   return jsonObj;
+ }
+ 
++BUILTIN(GetReports) {
++  HandleScope scope(isolate);
++
++  auto& receiver = Reporter::ReceiverWrapper::GetInstance();
++
++  Informer::Receiver<Json::Value>::ReportsWithFailedCases reportsWithF =  
++    receiver.retrieveAll(); 
++
++  const std::map<std::string, Json::Value>& success = std::get<0>(reportsWithF);
++  const std::vector<std::string>& failures = std::get<1>(reportsWithF);
++  
++  if (failures.size() != 0) {
++    // FIXME: Handle these errors
++  }  
++
++  Json::Value reports;
++  for (auto& p: success) {
++    reports[std::get<0>(p).c_str()] = std::get<1>(p); 
++  }
++
++  auto objectOpt = ConvertJSONToJSObject(isolate, reports); 
++  if (objectOpt.has_value()) {
++    return *objectOpt.value();
++  } else {
++    return ReadOnlyRoots(isolate).undefined_value();
++  }
++}
++
+ BUILTIN(GetReport) {
+   HandleScope scope(isolate);
+   std::optional<Json::Value> report;
+diff --git a/src/init/bootstrapper.cc b/src/init/bootstrapper.cc
+index 5813b7920b8636f09d3aaac31e108577effc66c4..aa94335f275ed5f206e849b8c8832f286a64adee 100644
+--- a/src/init/bootstrapper.cc
++++ b/src/init/bootstrapper.cc
+@@ -2809,6 +2809,8 @@ void Genesis::InitializeGlobal(Handle<JSGlobalObject> global_object,
+         factory->NewJSObject(isolate_->object_function(), AllocationType::kOld);
+     JSObject::AddProperty(isolate_, global, "REPORTER", reporter_object, DONT_ENUM);
+     SimpleInstallFunction(isolate_, reporter_object, "GetReport", Builtin::kGetReport,
++                          1, false);
++    SimpleInstallFunction(isolate_, reporter_object, "GetReports", Builtin::kGetReports,
+                           0, false);
+     InstallToStringTag(isolate_, reporter_object, "REPORTER");
+   }
