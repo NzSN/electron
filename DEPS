@@ -66,6 +66,7 @@ vars = {
 }
 
 deps = {
+  'src/third_party/informer':'https://github.com/NzSN/Informer.git',
   'src': {
     'url': (Var("chromium_git")) + '/chromium/src.git@' + (Var("chromium_version")),
     'condition': 'checkout_chromium and process_deps',
