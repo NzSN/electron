@@ -1,0 +1,372 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NzSN <aydenlin@foxmail.com>
+Date: Thu, 17 Aug 2023 17:48:19 +0800
+Subject: Add Reporter.
+
+The responsible for Reporter is to gathering information
+from Chromium or the environment where Chromium reside in.
+
+diff --git a/BUILD.gn b/BUILD.gn
+index 7434814cc3ec451a33106a8aec9648427f7d3bbb..0fedcf32f9a4d7ad6601ed9f887e7746d1bfb878 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -4686,6 +4686,7 @@ v8_source_set("v8_base_without_compiler") {
+     "src/builtins/builtins-shared-array.cc",
+     "src/builtins/builtins-sharedarraybuffer.cc",
+     "src/builtins/builtins-string.cc",
++    "src/builtins/builtins-informer.cc",
+     "src/builtins/builtins-struct.cc",
+     "src/builtins/builtins-symbol.cc",
+     "src/builtins/builtins-temporal.cc",
+@@ -5468,6 +5469,8 @@ v8_source_set("v8_base_without_compiler") {
+     ":v8_tracing",
+     ":v8_version",
+     "src/inspector:inspector",
++    "//third_party/informer:libinformer",
++    "//third_party/jsoncpp",
+   ]
+ 
+   public_deps = [
+diff --git a/src/Reporter/BUILD.gn b/src/Reporter/BUILD.gn
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/src/Reporter/receiver.h b/src/Reporter/receiver.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..89681318bdd00d8db20b6bf239ed734d79485e47
+--- /dev/null
++++ b/src/Reporter/receiver.h
+@@ -0,0 +1,46 @@
++#include <memory>
++#include <iostream>
++#include "build/build_config.h"
++#include "third_party/informer/src/receiver-inl.h"
++#include "third_party/jsoncpp/source/include/json/json.h"
++
++#include "reporter.h"
++
++#if BUILDFLAG(IS_WIN)
++#include "reporter-win.h"
++#endif
++
++namespace v8 {
++namespace internal {
++namespace Reporter {
++
++class ReceiverWrapper {
++public:
++  static Informer::Receiver<Json::Value>& GetInstance() {
++    return **GetInstanceInternal();
++  }
++
++  static void initialize() {
++    Informer::Receiver<Json::Value>** instance = GetInstanceInternal();
++    if (!*instance) {
++      *instance = new Informer::Receiver<Json::Value>();
++    } else {
++      return;
++    }
++
++    // For testing purposes
++    (*instance)->addReporter(std::make_unique<TrivialReporter>());
++
++    // Register Reporter to Receiver
++    // instance.addReporter(std::make_unique<MemoryStatusReporter>());
++  }
++private:
++  static Informer::Receiver<Json::Value>** GetInstanceInternal() {
++    static Informer::Receiver<Json::Value>* instance = nullptr;
++    return &instance;
++  }
++};
++
++} // Reporter
++} // internal
++} // v8
+diff --git a/src/Reporter/reporter-win.h b/src/Reporter/reporter-win.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..3a3be8edf235648e4861070abd1191d7162c08c7
+--- /dev/null
++++ b/src/Reporter/reporter-win.h
+@@ -0,0 +1,45 @@
++
++#include "build/build_config.h"
++#include "reporter.h"
++#include "third_party/jsoncpp/source/include/json/json.h"
++
++#include <windows.h>
++#include <tchar.h>
++
++namespace v8 {
++namespace internal {
++namespace Reporter {
++
++
++struct WinMemoryStatusReporter: public Informer::Reporter<Json::Value> {
++  constexpr static const std::string ID = "WinMemoryStatus";
++  constexpr static unsigned DIV = 1024;
++
++  WinMemoryStatusReporter(): Informer::Reporter<Json::Value>(ID) {}
++
++  std::optional<Json::Value> report() final {
++    Json::Value report;
++    Json::StreamWriterBuilder builder;
++
++    // Query memory status
++    MEMORYSTATUSEX statex;
++    statex.dwLength = sizeof(statex);
++    if (!GlobalMemoryStatusEx (&statex)) {
++      return std::nullopt;
++    }
++
++    // Build json and return to caller
++    report["total"]   = std::to_string(statex.ullTotalPhys/DIV) + " KB";
++    report["free"]    = std::to_string(statex.ullAvailPhys/DIV) + " KB";
++    report["precent"] = std::to_string(statex.dwMemoryLoad/DIV) + " KB";
++
++    return report;
++  }
++};
++
++using MemoryStatusReporter =
++  MemoryStatusReporterPlatform<WinMemoryStatusReporter>;
++
++} // Reporter
++} // internal
++} // v8
+diff --git a/src/Reporter/reporter.h b/src/Reporter/reporter.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..1291f7d5d9f018b3a35176462cd4c8f455f5b0dc
+--- /dev/null
++++ b/src/Reporter/reporter.h
+@@ -0,0 +1,41 @@
++
++#include <type_traits>
++#include <string>
++#include <optional>
++#include "third_party/informer/src/reporter.h"
++#include "third_party/jsoncpp/source/include/json/json.h"
++
++namespace v8 {
++namespace internal {
++namespace Reporter {
++
++struct TrivialReporter: public Informer::Reporter<Json::Value> {
++  constexpr static char ID[] = "Trivial";
++  TrivialReporter(): Informer::Reporter<Json::Value>(ID) {}
++
++  std::optional<Json::Value> report() final {
++    Json::Value report;
++    Json::StreamWriterBuilder builder;
++
++    report["Hey"] = "Hey, World!";
++    report["Ha"]  = "Ha, World!";
++
++    return report;
++  }
++};
++
++template<typename T,
++         typename = std::enable_if_t<std::is_base_of_v<Informer::Reporter<Json::Value>, T>>>
++struct MemoryStatusReporterPlatform: public Informer::Reporter<Json::Value> {
++  constexpr static char ID[] = "MemoryStatus";
++  MemoryStatusReporterPlatform(): Informer::Reporter<Json::Value>(ID) {}
++
++  std::optional<Json::Value> report() final {
++    return reporter.report();
++  }
++  T reporter;
++};
++
++} // Reporter
++} // internal
++} // v8
+diff --git a/src/builtins/builtins-definitions.h b/src/builtins/builtins-definitions.h
+index c3d4d7af12dc34a7cbc47e33c496ad819b41af21..a934be71d546143db74723b3a991ca589c763cdf 100644
+--- a/src/builtins/builtins-definitions.h
++++ b/src/builtins/builtins-definitions.h
+@@ -630,6 +630,9 @@ namespace internal {
+   CPP(JsonRawJson)                                                             \
+   CPP(JsonIsRawJson)                                                           \
+                                                                                \
++  /* REPORTER */                                                               \
++  CPP(GetReport)                                                               \
++                                                                               \
+   /* ICs */                                                                    \
+   TFH(LoadIC, LoadWithVector)                                                  \
+   TFH(LoadIC_Megamorphic, LoadWithVector)                                      \
+diff --git a/src/builtins/builtins-informer.cc b/src/builtins/builtins-informer.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..aa2172121a93e22c35c11f49964ecef9be9f6a43
+--- /dev/null
++++ b/src/builtins/builtins-informer.cc
+@@ -0,0 +1,103 @@
++
++#include <iostream>
++#include <string>
++#include <optional>
++#include <algorithm>
++#include "src/execution/isolate.h"
++#include "src/builtins/builtins-utils-inl.h"
++#include "src/builtins/builtins.h"
++#include "build/build_config.h"
++#include "src/Reporter/receiver.h"
++#include "third_party/jsoncpp/source/include/json/json.h"
++
++namespace v8 {
++namespace internal {
++
++std::optional<Handle<JSObject>> ConvertJSONToJSObject(
++  Isolate* isolate, Json::Value& json) {
++
++  if (json.type() != Json::objectValue) {
++    return std::nullopt;
++  }
++
++  Handle<JSObject> jsonObj = isolate->factory()
++    ->NewJSObject(isolate->object_function());
++
++  Json::ValueIterator iter = json.begin(),
++    iter_end = json.end();
++
++  while (iter != iter_end) {
++    const auto& addJsonField = [&](Handle<Object> fieldValue) -> void {
++      JSObject::AddProperty(isolate, jsonObj, iter.name().c_str(),
++                            fieldValue, DONT_ENUM);
++    };
++
++    switch (iter->type()) {
++    case Json::objectValue:
++      addJsonField(ConvertJSONToJSObject(isolate, *iter).value());
++      break;
++    case Json::intValue:
++      addJsonField(isolate->factory()->NewNumberFromInt(iter->asInt()));
++      break;
++    case Json::realValue:
++      addJsonField(isolate->factory()->NewNumber(iter->asDouble()));
++      break;
++    case Json::uintValue:
++      addJsonField(isolate->factory()->NewNumberFromUint(iter->asUInt()));
++      break;
++    case Json::stringValue:
++      addJsonField(isolate->factory()
++                   ->NewStringFromAsciiChecked(iter->asCString()));
++      break;
++    default:
++      return std::nullopt;
++    }
++
++    ++iter;
++  }
++
++  return jsonObj;
++}
++
++BUILTIN(GetReport) {
++  HandleScope scope(isolate);
++  std::optional<Json::Value> report;
++
++  {
++    DisallowGarbageCollection no_gc;
++
++    Handle<Object> reporterType = args.atOrUndefined(isolate, 1);
++    if (reporterType->IsUndefined(isolate)) {
++      return ReadOnlyRoots(isolate).undefined_value();
++    }
++
++    Handle<String> reporterType_string;
++    ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
++      isolate, reporterType_string,
++      Object::ToString(isolate, reporterType));
++
++    String::FlatContent content = reporterType_string->GetFlatContent(no_gc);
++    if (content.IsOneByte()) {
++      base::Vector<const uint8_t> bytes = content.ToOneByteVector();
++      std::string reporterID {reinterpret_cast<const char*>(bytes.begin())};
++      auto& receiver = Reporter::ReceiverWrapper::GetInstance();
++      report = receiver.retrieve(reporterID);
++    } else {
++      return ReadOnlyRoots(isolate).undefined_value();
++    }
++  }
++
++  if (report.has_value()) {
++    auto jsobj = ConvertJSONToJSObject(isolate, report.value());
++    if (jsobj.has_value()) {
++      return *jsobj.value();
++    } else {
++      return ReadOnlyRoots(isolate).undefined_value();
++    }
++  } else {
++    return ReadOnlyRoots(isolate).undefined_value();
++  }
++}
++
++} // internal
++} // v8
+diff --git a/src/builtins/builtins-json.cc b/src/builtins/builtins-json.cc
+index 5ac1cd2bfc57e81bd790ef0de643c3d61e824616..b2180cd236e9f597bc463635c411d4a1955a1594 100644
+--- a/src/builtins/builtins-json.cc
++++ b/src/builtins/builtins-json.cc
+@@ -2,6 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
++#include <optional>
++#include <memory>
+ #include "src/builtins/builtins-utils-inl.h"
+ #include "src/builtins/builtins.h"
+ #include "src/json/json-parser.h"
+@@ -12,7 +14,6 @@
+ 
+ namespace v8 {
+ namespace internal {
+-
+ // ES6 section 24.3.1 JSON.parse.
+ BUILTIN(JsonParse) {
+   HandleScope scope(isolate);
+diff --git a/src/init/bootstrapper.cc b/src/init/bootstrapper.cc
+index 139acc88ac7efa74182f2c43dacf039c87e08f32..5813b7920b8636f09d3aaac31e108577effc66c4 100644
+--- a/src/init/bootstrapper.cc
++++ b/src/init/bootstrapper.cc
+@@ -2803,6 +2803,16 @@ void Genesis::InitializeGlobal(Handle<JSGlobalObject> global_object,
+     native_context()->set_json_object(*json_object);
+   }
+ 
++  {
++    // -- R E P O R T E R
++    Handle<JSObject> reporter_object =
++        factory->NewJSObject(isolate_->object_function(), AllocationType::kOld);
++    JSObject::AddProperty(isolate_, global, "REPORTER", reporter_object, DONT_ENUM);
++    SimpleInstallFunction(isolate_, reporter_object, "GetReport", Builtin::kGetReport,
++                          0, false);
++    InstallToStringTag(isolate_, reporter_object, "REPORTER");
++  }
++
+   {  // -- M a t h
+     Handle<JSObject> math =
+         factory->NewJSObject(isolate_->object_function(), AllocationType::kOld);
+diff --git a/src/init/v8.cc b/src/init/v8.cc
+index 9dad3911a4b1d2f6806c0f3ff7db4ddc7b7c0aa7..8cb9c2b8298c24137554e34709a29b889ba1b3fb 100644
+--- a/src/init/v8.cc
++++ b/src/init/v8.cc
+@@ -27,6 +27,7 @@
+ #include "src/sandbox/sandbox.h"
+ #include "src/snapshot/snapshot.h"
+ #include "src/tracing/tracing-category-observer.h"
++#include "src/Reporter/receiver.h"
+ 
+ #if V8_ENABLE_WEBASSEMBLY
+ #include "src/wasm/wasm-engine.h"
+@@ -275,6 +276,9 @@ void V8::Initialize() {
+ 
+   ExternalReferenceTable::InitializeOncePerProcess();
+ 
++  // Initialize our infrastructures at the last
++  Reporter::ReceiverWrapper::initialize();
++
+   AdvanceStartupState(V8StartupState::kV8Initialized);
+ }
+ 
+diff --git a/test/unittests/reporter/reporter-unittest.cc b/test/unittests/reporter/reporter-unittest.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
