@@ -1,17 +1,20 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: NzSN <aydenlin@foxmail.com>
-Date: Mon, 21 Aug 2023 09:55:48 +0800
-Subject: Add Informer.
+Date: Mon, 21 Aug 2023 12:55:50 +0800
+Subject: Add informer
 
 This project provide Interfaces to gather information about chromium or
 it's running environment. Which may used by V8 or elsewhere.
 
-diff --git a/.gitmodules b/.gitmodules
-new file mode 100644
-index 0000000000000000000000000000000000000000..86c1bd925b41f61f339b66d58f97fb41004fb220
---- /dev/null
-+++ b/.gitmodules
-@@ -0,0 +1,3 @@
-+[submodule "third_party/informer"]
-+	path = third_party/informer
-+	url = https://github.com/NzSN/Informer.git
+diff --git a/DEPS b/DEPS
+index 5b9efe66406bdd328cc5c781438da907e56dc12d..5e10fc21d3cf77d62359a00f729ec0646496c1b9 100644
+--- a/DEPS
++++ b/DEPS
+@@ -505,6 +505,7 @@ allowed_hosts = [
+ ]
+ 
+ deps = {
++  'src/third_party/informer':'https://github.com/NzSN/Informer.git',
+   'src/buildtools/clang_format/script':
+     Var('chromium_git') +
+     '/external/github.com/llvm/llvm-project/clang/tools/clang-format.git@' +
