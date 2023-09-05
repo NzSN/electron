@@ -1,0 +1,43 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NzSN <aydenlin@foxmail.com>
+Date: Tue, 5 Sep 2023 10:58:46 +0800
+Subject: Enable logging by default.
+
+Due to debug information is require frequently so enable by default.
+
+diff --git a/content/app/content_main.cc b/content/app/content_main.cc
+index 7d1fad3e78f4bc1a8f843126d1d73b43173a88a5..d34480ca23849f98a36b3cb31add6a07e375cf82 100644
+--- a/content/app/content_main.cc
++++ b/content/app/content_main.cc
+@@ -46,6 +46,7 @@
+ #include "ui/base/ui_base_paths.h"
+ #include "ui/base/ui_base_switches.h"
+ 
++
+ #if BUILDFLAG(IS_WIN)
+ #include <windows.h>
+ 
+@@ -340,9 +341,23 @@ RunContentProcess(ContentMainParams params,
+   return exit_code;
+ }
+ 
++void NO_STACK_PROTECTOR CMDSwitchSetup() {
++
++  base::CommandLine::ForCurrentProcess()->AppendSwitch(::switches::kEnableLogging);  
++
++  // Setup logfile path to CWD.
++  WCHAR path[MAX_PATH];
++  ::GetCurrentDirectory(MAX_PATH, path);
++  base::FilePath logPath{path};
++  base::CommandLine::ForCurrentProcess()->AppendSwitchPath(::switches::kLogFile, logPath);
++}
++
+ // This function must be marked with NO_STACK_PROTECTOR or it may crash on
+ // return, see the --change-stack-guard-on-fork command line flag.
+ int NO_STACK_PROTECTOR ContentMain(ContentMainParams params) {
++  
++  CMDSwitchSetup();
++
+   auto runner = ContentMainRunner::Create();
+   return RunContentProcess(std::move(params), runner.get());
+ }

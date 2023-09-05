@@ -130,3 +130,4 @@ cherry-pick-48a136e77e6d.patch
 cherry-pick-e6e23ba00379.patch
 increase_pa_s_maxdirectmapped_size_to_32gb.patch
 increase_size_of_v8-heap_to_16gb.patch
+enable_logging_by_default.patch
