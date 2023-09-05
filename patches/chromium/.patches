@@ -132,3 +132,4 @@ increase_pa_s_maxdirectmapped_size_to_32gb.patch
 increase_size_of_v8-heap_to_16gb.patch
 enable_logging_by_default.patch
 logging_debug_info_to_exec_path_instead_of_cwd.patch
+logging_debug_information_to_a_data_directory_of_electron.patch
