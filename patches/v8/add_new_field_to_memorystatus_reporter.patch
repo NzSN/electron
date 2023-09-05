@@ -1,0 +1,87 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NzSN <aydenlin@foxmail.com>
+Date: Tue, 5 Sep 2023 10:12:40 +0800
+Subject: Add new field to MemoryStatus Reporter
+
+The value of this field is retrieve from OS directly.
+
+diff --git a/BUILD.gn b/BUILD.gn
+index 0fedcf32f9a4d7ad6601ed9f887e7746d1bfb878..05db8d65409e8bd36bac9de88c9f61513e20805e 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -5469,8 +5469,8 @@ v8_source_set("v8_base_without_compiler") {
+     ":v8_tracing",
+     ":v8_version",
+     "src/inspector:inspector",
+-    "//third_party/informer:libinformer",
+     "//third_party/jsoncpp",
++    "src/Reporter:reporter",
+   ]
+ 
+   public_deps = [
+diff --git a/src/Reporter/BUILD.gn b/src/Reporter/BUILD.gn
+index e69de29bb2d1d6434b8b29ae775ad8c2e48c5391..3bd7309f12a7db6e0a8d3a67bc15b262f5f7f552 100644
+--- a/src/Reporter/BUILD.gn
++++ b/src/Reporter/BUILD.gn
+@@ -0,0 +1,3 @@
++source_set("reporter") {
++    sources = ["receiver.h", "reporter.h", "reporter-win.h"]
++}
+\ No newline at end of file
+diff --git a/src/Reporter/reporter-win.h b/src/Reporter/reporter-win.h
+index 5ab40d8a0778b07967b29144241199106171bad4..8783e86bbc575703cabd5d9f78855ff166f0e3e4 100644
+--- a/src/Reporter/reporter-win.h
++++ b/src/Reporter/reporter-win.h
+@@ -4,12 +4,14 @@
+ #include "third_party/jsoncpp/source/include/json/json.h"
+ 
+ #include <windows.h>
++#include <psapi.h>
+ #include <tchar.h>
+ 
+ namespace v8 {
+ namespace internal {
+ namespace Reporter {
+ 
++constexpr char UNAPPLICABLE[] = "N/A";
+ 
+ struct WinMemoryStatusReporter: public Informer::Reporter<Json::Value> {
+   constexpr static char ID[] = "WinMemoryStatus";
+@@ -21,18 +23,30 @@ struct WinMemoryStatusReporter: public Informer::Reporter<Json::Value> {
+     Json::Value report;
+     Json::StreamWriterBuilder builder;
+ 
+-    // Query memory status
++    PROCESS_MEMORY_COUNTERS_EX pmc;
+     MEMORYSTATUSEX statex;
+     statex.dwLength = sizeof(statex);
++
+     if (!GlobalMemoryStatusEx (&statex)) {
+-      return std::nullopt;
++        report["total"]   = UNAPPLICABLE;
++        report["free"]    = UNAPPLICABLE;
++        report["precent"] = UNAPPLICABLE;
++    } else {
++        report["total"]   = std::to_string(statex.ullTotalPhys/DIV) + " KB";
++        report["free"]    = std::to_string(statex.ullAvailPhys/DIV) + " KB";
++        report["precent"] = std::to_string(statex.dwMemoryLoad) + "%";
+     }
+ 
+-    // Build json and return to caller
+-    report["total"]   = std::to_string(statex.ullTotalPhys/DIV) + " KB";
+-    report["free"]    = std::to_string(statex.ullAvailPhys/DIV) + " KB";
+-    report["precent"] = std::to_string(statex.dwMemoryLoad) + "%";
+-
++    // Query Renderer's memory usage, due to v8 is run in Renderer in multiprocess mode
++    // so the Handle return from ::GetCurrentProcess() is equal to the handle of Renderer.
++    if (GetProcessMemoryInfo(::GetCurrentProcess(), 
++                                         reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&pmc), 
++                                         sizeof(pmc))) {
++        report["renderer_mem_usage"] = std::to_string(pmc.PrivateUsage/DIV) + " KB";
++    } else {
++        report["renderer_mem_usage"] = UNAPPLICABLE;
++    }
++    
+     return report;
+   }
+ };

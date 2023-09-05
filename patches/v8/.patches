@@ -13,3 +13,4 @@ add_reporter.patch
 v8-typedarray_length_increase.patch
 fix_erros.patch
 implement_memorystatus_reporters_and_new_builtin.patch
+add_new_field_to_memorystatus_reporter.patch
