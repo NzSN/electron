@@ -7,19 +7,18 @@ To change logging path due to permission problem when executable
 residein a place where it has no right to write.
 
 diff --git a/content/app/content_main.cc b/content/app/content_main.cc
-index 71879a465c91bbe55a6545f0d1a2dd6d2275e62a..bee1b89352fbf295281e31a449516833846ac0d5 100644
+index 71879a465c91bbe55a6545f0d1a2dd6d2275e62a..8044cd8e25fb5b268a1596de181283315707fb47 100644
 --- a/content/app/content_main.cc
 +++ b/content/app/content_main.cc
-@@ -51,6 +51,8 @@
+@@ -51,6 +51,7 @@
  #if BUILDFLAG(IS_WIN)
  #include <windows.h>
  #include <libloaderapi.h>
 +#include <shlobj_core.h>
-+#include <shlwapi.h>
  
  #include "base/win/process_startup_helper.h"
  #include "base/win/win_util.h"
-@@ -345,16 +347,35 @@ RunContentProcess(ContentMainParams params,
+@@ -345,16 +346,34 @@ RunContentProcess(ContentMainParams params,
  
  void NO_STACK_PROTECTOR CMDSwitchSetup() {
  
@@ -27,10 +26,10 @@ index 71879a465c91bbe55a6545f0d1a2dd6d2275e62a..bee1b89352fbf295281e31a449516833
 +#if BUILDFLAG(IS_WIN)
 +  // Check existence of data folder of electron which
 +  // reside in roaming folder, a standard known folder of windows.
-+  WCHAR roamingPath[MAX_PATH];
++  WCHAR *roamingPath;
 +
 +  if (SHGetKnownFolderPath(
-+        FOLDERID_RoamingAppData, 0, NULL, roamingPath) == E_FAIL) {
++        FOLDERID_RoamingAppData, 0, NULL, &roamingPath) == E_FAIL) {
 +
 +    return;
 +  }
@@ -50,13 +49,12 @@ index 71879a465c91bbe55a6545f0d1a2dd6d2275e62a..bee1b89352fbf295281e31a449516833
 +  } else {
 +    logPath = dataPath + L"\\debug.log";
 +  }
-+  base::FilePath logPath{logPath.c_str()};
 +
 +  // Switch settings
 +  base::CommandLine::ForCurrentProcess()->AppendSwitch(
 +    ::switches::kEnableLogging);
 +  base::CommandLine::ForCurrentProcess()->AppendSwitchPath(
-+    ::switches::kLogFile, logPath);
++    ::switches::kLogFile, base::FilePath(logPath.c_str()));
 +#endif
  
 -  base::CommandLine::ForCurrentProcess()->AppendSwitchPath(::switches::kLogFile, logPath);
