@@ -1,0 +1,84 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NzSN <aydenlin@foxmail.com>
+Date: Fri, 26 Apr 2024 10:17:11 +0800
+Subject: Increase limit of PA allocations to 32GB.
+
+
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/partition_alloc.cc b/base/allocator/partition_allocator/src/partition_alloc/partition_alloc.cc
+index 358e91373cb7036b7d3382dadb7c81eb5c99110b..8611c04880624cd936a9e3db62fe7f7da17091d8 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/partition_alloc.cc
++++ b/base/allocator/partition_allocator/src/partition_alloc/partition_alloc.cc
+@@ -61,7 +61,7 @@ void PartitionAllocGlobalInit(OomFunction on_out_of_memory) {
+   // Limit to prevent callers accidentally overflowing an int size.
+   STATIC_ASSERT_OR_PA_CHECK(
+       internal::MaxDirectMapped() <=
+-          (1UL << 31) + internal::DirectMapAllocationGranularity(),
++          (1ULL << 35) + internal::DirectMapAllocationGranularity(),
+       "maximum direct mapped allocation");
+ 
+   // Check that some of our zanier calculations worked out as expected.
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/partition_alloc_constants.h b/base/allocator/partition_allocator/src/partition_alloc/partition_alloc_constants.h
+index 3322c09fc56fb923dccd90d4b49178292506a9f1..2a0417afac79d7ab242a0e7c2f1f98d093c20b6f 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/partition_alloc_constants.h
++++ b/base/allocator/partition_allocator/src/partition_alloc/partition_alloc_constants.h
+@@ -316,7 +316,7 @@ constexpr size_t kNumPools = kMaxPoolHandle - 1;
+     BUILDFLAG(ENABLE_POINTER_COMPRESSION)
+ constexpr size_t kPoolMaxSize = 8 * kGiB;
+ #else
+-constexpr size_t kPoolMaxSize = 16 * kGiB;
++constexpr size_t kPoolMaxSize = 32 * kGiB;
+ #endif
+ #else  // BUILDFLAG(HAS_64_BIT_POINTERS)
+ constexpr size_t kPoolMaxSize = 4 * kGiB;
+@@ -430,10 +430,10 @@ constexpr size_t kMinDirectMappedDownsize = kMaxBucketed + 1;
+ // The definition of MaxDirectMapped does only depend on constants that are
+ // unconditionally constexpr. Therefore it is not necessary to use
+ // PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR here.
+-PA_ALWAYS_INLINE constexpr size_t MaxDirectMapped() {
++PA_ALWAYS_INLINE constexpr int64_t MaxDirectMapped() {
+   // Subtract kSuperPageSize to accommodate for granularity inside
+   // PartitionRoot::GetDirectMapReservationSize.
+-  return (1UL << 31) - kSuperPageSize;
++  return (1ULL << 35) - kSuperPageSize;
+ }
+ 
+ // Max alignment supported by AlignedAlloc().
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/partition_bucket.h b/base/allocator/partition_allocator/src/partition_alloc/partition_bucket.h
+index 433ddf66ddc5327edebdab24825d37a5b535b770..84701a170ad51f23b18b07b0a02eb2260612c22e 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/partition_bucket.h
++++ b/base/allocator/partition_allocator/src/partition_alloc/partition_bucket.h
+@@ -36,7 +36,7 @@ struct PartitionBucket {
+ 
+   SlotSpanMetadata* empty_slot_spans_head;
+   SlotSpanMetadata* decommitted_slot_spans_head;
+-  uint32_t slot_size;
++  uint64_t slot_size;
+   uint32_t num_system_pages_per_slot_span
+       : kPartitionNumSystemPagesPerSlotSpanBits;
+   uint32_t num_full_slot_spans : 24;
+diff --git a/gin/v8_initializer.cc b/gin/v8_initializer.cc
+index 158a96fd3a14fe975554a0d0c40c80f090eb6490..f47f40aeaba48451189b3d8ae68c98d349876a56 100644
+--- a/gin/v8_initializer.cc
++++ b/gin/v8_initializer.cc
+@@ -448,6 +448,8 @@ void SetFlags(IsolateHolder::ScriptMode mode,
+                          "--turboshaft-wasm-instruction-selection-staged",
+                          "--no-turboshaft-wasm-instruction-selection-staged");
+ 
++  SetV8Flags("--max-old-space-size=16384");
++
+   if (js_command_line_flags.empty())
+     return;
+ 
+diff --git a/sandbox/policy/win/sandbox_win.cc b/sandbox/policy/win/sandbox_win.cc
+index 047c70a256f0a144f4835f0cf9dee64113a93791..4130903d6a76b5e2ad4dd6b501d1e45b71ab21d1 100644
+--- a/sandbox/policy/win/sandbox_win.cc
++++ b/sandbox/policy/win/sandbox_win.cc
+@@ -1182,6 +1182,8 @@ std::optional<size_t> SandboxWin::GetJobMemoryLimit(Sandbox sandbox_type) {
+       memory_limit = 64 * GB;
+     } else if (sandbox_type == Sandbox::kGpu && physical_memory > 32 * GB) {
+       memory_limit = 32 * GB;
++    } else if (physical_memory > 32 * GB) {
++      memory_limit = 32 * GB;
+     } else if (physical_memory > 16 * GB) {
+       memory_limit = 16 * GB;
+     } else {
