@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NzSN <aydenlin@foxmail.com>
+Date: Fri, 14 Jun 2024 14:52:54 +0800
+Subject: =?UTF-8?q?Remove=20unnecessary=20condition=20check=20after=20incr?=
+ =?UTF-8?q?ease=0AMaxDirectMap=20to=2032GB?=
+
+
+diff --git a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+index aa89d49c0efe843a0ceee7f03ffdb54c64e2e3d2..98f135a7637f0b2bbac52fd27d0c7ca2b0be864a 100644
+--- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
++++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+@@ -8323,8 +8323,7 @@ bool WebGLRenderingContextBase::ValidateTexFuncData(
+   base::CheckedNumeric<uint32_t> data_size = total_bytes_required;
+   data_size += skip_bytes;
+   uint32_t data_size_val;
+-  if (!data_size.AssignIfValid(&data_size_val) ||
+-      data_size_val > kMaximumSupportedArrayBufferSize) {
++  if (!data_size.AssignIfValid(&data_size_val)) {
+     SynthesizeGLError(GL_INVALID_VALUE, function_name,
+                       "texture data size exceeds the supported range");
+     return false;
+diff --git a/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc b/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc
+index 0a575fd624b4b9c97ff7e4e68b5c8bdeb8e9c350..50b301e0c4f5addd4e8a91e96ea7918c69e6da67 100644
+--- a/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc
++++ b/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc
+@@ -54,8 +54,6 @@ Vector<uint8_t> StaticBitmapImage::CopyImageData(const SkImageInfo& info,
+ 
+   wtf_size_t byte_length =
+       base::checked_cast<wtf_size_t>(info.computeMinByteSize());
+-  if (byte_length > partition_alloc::MaxDirectMapped())
+-    return {};
+   Vector<uint8_t> dst_buffer(byte_length);
+ 
+   bool read_pixels_successful =
