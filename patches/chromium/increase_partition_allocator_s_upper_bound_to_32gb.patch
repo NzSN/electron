@@ -1,0 +1,111 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NzSN <aydenlin@foxmail.com>
+Date: Thu, 4 Jul 2024 19:46:26 +0800
+Subject: Increase partition allocator's upper bound to 32GB
+
+
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/partition_alloc.cc b/base/allocator/partition_allocator/src/partition_alloc/partition_alloc.cc
+index 18d9997ca30ba92abb407728f10372c3e2330f7f..030de8ad6154120e35e17b186bdcaeee74a7be1d 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/partition_alloc.cc
++++ b/base/allocator/partition_allocator/src/partition_alloc/partition_alloc.cc
+@@ -61,7 +61,7 @@ void PartitionAllocGlobalInit(OomFunction on_out_of_memory) {
+   // Limit to prevent callers accidentally overflowing an int size.
+   STATIC_ASSERT_OR_PA_CHECK(
+       internal::MaxDirectMapped() <=
+-          (1UL << 31) + internal::DirectMapAllocationGranularity(),
++          (1ULL << 35) + internal::DirectMapAllocationGranularity(),
+       "maximum direct mapped allocation");
+ 
+   // Check that some of our zanier calculations worked out as expected.
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/partition_alloc_constants.h b/base/allocator/partition_allocator/src/partition_alloc/partition_alloc_constants.h
+index 63652bcaf361fe3f1f7994405a7640b084008cb1..90532f4de348da72a986d8dd0a10dfbcf7743a26 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/partition_alloc_constants.h
++++ b/base/allocator/partition_allocator/src/partition_alloc/partition_alloc_constants.h
+@@ -319,7 +319,7 @@ constexpr size_t kNumPools = kMaxPoolHandle - 1;
+     PA_BUILDFLAG(ENABLE_POINTER_COMPRESSION)
+ constexpr size_t kPoolMaxSize = 8 * kGiB;
+ #else
+-constexpr size_t kPoolMaxSize = 16 * kGiB;
++constexpr size_t kPoolMaxSize = 32 * kGiB;
+ #endif
+ #else  // PA_BUILDFLAG(HAS_64_BIT_POINTERS)
+ constexpr size_t kPoolMaxSize = 4 * kGiB;
+@@ -433,10 +433,10 @@ constexpr size_t kMinDirectMappedDownsize = kMaxBucketed + 1;
+ // The definition of MaxDirectMapped does only depend on constants that are
+ // unconditionally constexpr. Therefore it is not necessary to use
+ // PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR here.
+-PA_ALWAYS_INLINE constexpr size_t MaxDirectMapped() {
++PA_ALWAYS_INLINE constexpr int64_t MaxDirectMapped() {
+   // Subtract kSuperPageSize to accommodate for granularity inside
+   // PartitionRoot::GetDirectMapReservationSize.
+-  return (1UL << 31) - kSuperPageSize;
++  return (1ULL << 35) - kSuperPageSize;
+ }
+ 
+ // Max alignment supported by AlignedAlloc().
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/partition_bucket.h b/base/allocator/partition_allocator/src/partition_alloc/partition_bucket.h
+index 304f7b3372c46eb3f1966f6a583c5ab7b3263b20..fd026bdf2a3f1d3c645d0aec2f40da1a4839e781 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/partition_bucket.h
++++ b/base/allocator/partition_allocator/src/partition_alloc/partition_bucket.h
+@@ -36,7 +36,7 @@ struct PartitionBucket {
+ 
+   SlotSpanMetadata* empty_slot_spans_head;
+   SlotSpanMetadata* decommitted_slot_spans_head;
+-  uint32_t slot_size;
++  uint64_t slot_size;
+   uint32_t num_system_pages_per_slot_span
+       : kPartitionNumSystemPagesPerSlotSpanBits;
+   uint32_t num_full_slot_spans : 24;
+diff --git a/gin/v8_initializer.cc b/gin/v8_initializer.cc
+index eb94184ab6cad33075093028581c2122d5e467d4..518c38feb506e9506a3804c0b77d306c84ce9f52 100644
+--- a/gin/v8_initializer.cc
++++ b/gin/v8_initializer.cc
+@@ -455,6 +455,8 @@ void SetFlags(IsolateHolder::ScriptMode mode,
+                          "--turboshaft-wasm-instruction-selection-staged",
+                          "--no-turboshaft-wasm-instruction-selection-staged");
+ 
++  SetV8Flags("--max-old-space-size=16384");
++
+   if (js_command_line_flags.empty())
+     return;
+ 
+diff --git a/sandbox/policy/win/sandbox_win.cc b/sandbox/policy/win/sandbox_win.cc
+index aea341b39c0ecdb89b3ae2f9308aed88615163de..c950c29b34785027c761ab3ee27b2c8663da65a9 100644
+--- a/sandbox/policy/win/sandbox_win.cc
++++ b/sandbox/policy/win/sandbox_win.cc
+@@ -1207,6 +1207,8 @@ std::optional<size_t> SandboxWin::GetJobMemoryLimit(Sandbox sandbox_type) {
+       memory_limit = 64 * GB;
+     } else if (sandbox_type == Sandbox::kGpu && physical_memory > 32 * GB) {
+       memory_limit = 32 * GB;
++    } else if (physical_memory > 32 * GB) {
++      memory_limit = 32 * GB; 
+     } else if (physical_memory > 16 * GB) {
+       memory_limit = 16 * GB;
+     } else {
+diff --git a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+index 118c8a892272124c4a74aab5615e6e1fea5f0deb..74e4c9e070de3dfae15b50b64eafbb5abcac3c53 100644
+--- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
++++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+@@ -8302,8 +8302,7 @@ bool WebGLRenderingContextBase::ValidateTexFuncData(
+   base::CheckedNumeric<uint32_t> data_size = total_bytes_required;
+   data_size += skip_bytes;
+   uint32_t data_size_val;
+-  if (!data_size.AssignIfValid(&data_size_val) ||
+-      data_size_val > kMaximumSupportedArrayBufferSize) {
++  if (!data_size.AssignIfValid(&data_size_val)) {
+     SynthesizeGLError(GL_INVALID_VALUE, function_name,
+                       "texture data size exceeds the supported range");
+     return false;
+diff --git a/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc b/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc
+index 0a575fd624b4b9c97ff7e4e68b5c8bdeb8e9c350..50b301e0c4f5addd4e8a91e96ea7918c69e6da67 100644
+--- a/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc
++++ b/third_party/blink/renderer/platform/graphics/static_bitmap_image.cc
+@@ -54,8 +54,6 @@ Vector<uint8_t> StaticBitmapImage::CopyImageData(const SkImageInfo& info,
+ 
+   wtf_size_t byte_length =
+       base::checked_cast<wtf_size_t>(info.computeMinByteSize());
+-  if (byte_length > partition_alloc::MaxDirectMapped())
+-    return {};
+   Vector<uint8_t> dst_buffer(byte_length);
+ 
+   bool read_pixels_successful =
