@@ -21,6 +21,9 @@ if (electron_js2c_toolchain == "") {
              current_cpu == "arm") {
     # Trying to compile 32-bit arm on arm64. Good luck!
     electron_js2c_toolchain = current_toolchain
+  } else if (current_os == host_os && host_cpu == "x64" && 
+             current_cpu == "loong64") {
+    electron_js2c_toolchain = current_toolchain
   } else if (host_cpu == current_cpu) {
     # Cross-build from same ISA on one OS to another. For example:
     # * targeting win/x64 on a linux/x64 host
