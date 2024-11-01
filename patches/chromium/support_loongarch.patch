@@ -1,0 +1,114 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: linshizhi <email>
+Date: Wed, 21 Aug 2024 17:48:27 +0800
+Subject: Support LoongArch
+
+
+diff --git a/build/config/clang/BUILD.gn b/build/config/clang/BUILD.gn
+index 1a3a7e5440f027899ad52ab64367bdca3851e282..a2a5d464e51008cfe7fdc4e7301ae0985f5b176a 100644
+--- a/build/config/clang/BUILD.gn
++++ b/build/config/clang/BUILD.gn
+@@ -175,6 +175,8 @@ template("clang_lib") {
+           _dir = "armv7-unknown-linux-gnueabihf"
+         } else if (current_cpu == "arm64") {
+           _dir = "aarch64-unknown-linux-gnu"
++        } else if (current_cpu == "loong64") {
++          _dir = "loongarch64-unknown-linux-gnu"
+         } else {
+           assert(false)  # Unhandled cpu type
+         }
+diff --git a/build/config/linux/pkg-config.py b/build/config/linux/pkg-config.py
+index 4f67c16192f76178fdf216ffc4e2f81e8d7d3fe4..8440bb14ad59d79b16a4db8b51269f07f926f286 100755
+--- a/build/config/linux/pkg-config.py
++++ b/build/config/linux/pkg-config.py
+@@ -57,8 +57,12 @@ def SetConfigPath(options):
+   if sysroot and not arch:
+     print("You must specify an architecture via -a if using a sysroot.")
+     sys.exit(1)
++  
++  if arch == 'loong64':
++    libdir  = sysroot + '/lib64' + '/pkgconfig'
++  else:
++    libdir = sysroot + '/usr/' + options.system_libdir + '/pkgconfig'
+ 
+-  libdir = sysroot + '/usr/' + options.system_libdir + '/pkgconfig'
+   libdir += ':' + sysroot + '/usr/share/pkgconfig'
+   os.environ['PKG_CONFIG_LIBDIR'] = libdir
+   return libdir
+diff --git a/build/config/rust.gni b/build/config/rust.gni
+index e99d7d08e1c1b8e951e04e6c2ee646267e6779d6..47cd0d35ef3eee89343d67228ad65b75f5674d05 100644
+--- a/build/config/rust.gni
++++ b/build/config/rust.gni
+@@ -194,6 +194,8 @@ if (is_linux || is_chromeos) {
+     rust_abi_target = "i686-unknown-linux-gnu"
+   } else if (current_cpu == "x64") {
+     rust_abi_target = "x86_64-unknown-linux-gnu"
++  } else if (current_cpu == "loong64") {
++    rust_abi_target = "loongarch64-unknown-linux-gnu"
+   } else if (current_cpu == "arm") {
+     if (arm_float_abi == "hard") {
+       float_suffix = "hf"
+@@ -294,6 +296,8 @@ if (current_cpu == "x86") {
+   rust_target_arch = "powerpc64"
+ } else if (current_cpu == "riscv64") {
+   rust_target_arch = "riscv64"
++} else if (current_cpu == "loong64") {
++  rust_target_arch = "loongarch64"
+ }
+ 
+ assert(!toolchain_has_rust || rust_target_arch != "")
+diff --git a/build/config/sysroot.gni b/build/config/sysroot.gni
+index 47fe4cbc840ddc1e863770fdbe6582589ecb0c8b..3b3687efc196d1983616f62b4db85eeaada47e6a 100644
+--- a/build/config/sysroot.gni
++++ b/build/config/sysroot.gni
+@@ -49,6 +49,8 @@ if (sysroot == "") {
+       sysroot = "$target_sysroot_dir/debian_bullseye_armhf-sysroot"
+     } else if (current_cpu == "arm64") {
+       sysroot = "$target_sysroot_dir/debian_bullseye_arm64-sysroot"
++    } else if (current_cpu == "loong64") {
++      sysroot = "$target_sysroot_dir/debian_bullseye_loong64-sysroot"
+     } else {
+       assert(false, "No linux sysroot for cpu: $target_cpu")
+     }
+diff --git a/third_party/boringssl/src b/third_party/boringssl/src
+index 2db0eb3f96a5756298dcd7f9319e56a98585bd10..6858accc9ff41bd4dd56f1cc8ca6f60c0adba651 160000
+--- a/third_party/boringssl/src
++++ b/third_party/boringssl/src
+@@ -1 +1 @@
+-Subproject commit 2db0eb3f96a5756298dcd7f9319e56a98585bd10
++Subproject commit 6858accc9ff41bd4dd56f1cc8ca6f60c0adba651
+diff --git a/third_party/devtools-frontend/src b/third_party/devtools-frontend/src
+index c963f0c7472f41d9d4c3335fffdab4f9b8da25bb..8be5c34cd7d475812849e4b5e5c96ee1dff14954 160000
+--- a/third_party/devtools-frontend/src
++++ b/third_party/devtools-frontend/src
+@@ -1 +1 @@
+-Subproject commit c963f0c7472f41d9d4c3335fffdab4f9b8da25bb
++Subproject commit 8be5c34cd7d475812849e4b5e5c96ee1dff14954
+diff --git a/third_party/ffmpeg b/third_party/ffmpeg
+index 092f84b6141055bfab609b6b2666b724eee2e130..0ffeb0be8ce3b89b306894fbed2c88dfd539b1a6 160000
+--- a/third_party/ffmpeg
++++ b/third_party/ffmpeg
+@@ -1 +1 @@
+-Subproject commit 092f84b6141055bfab609b6b2666b724eee2e130
++Subproject commit 0ffeb0be8ce3b89b306894fbed2c88dfd539b1a6
+diff --git a/third_party/perfetto b/third_party/perfetto
+index 6aaa8a1fb15659d1b68179e20993e969d9f500f8..67eb0ee09c3a78c4b4616b86de76132863ec95a0 160000
+--- a/third_party/perfetto
++++ b/third_party/perfetto
+@@ -1 +1 @@
+-Subproject commit 6aaa8a1fb15659d1b68179e20993e969d9f500f8
++Subproject commit 67eb0ee09c3a78c4b4616b86de76132863ec95a0
+diff --git a/third_party/webrtc b/third_party/webrtc
+index a18e38fed2307edd6382760213fa3ddf199fa181..0985927e00bf7a6b610f9670f7298819337f0960 160000
+--- a/third_party/webrtc
++++ b/third_party/webrtc
+@@ -1 +1 @@
+-Subproject commit a18e38fed2307edd6382760213fa3ddf199fa181
++Subproject commit 0985927e00bf7a6b610f9670f7298819337f0960
+diff --git a/v8 b/v8
+index fa981ae5db3e07d2c41fad0517a5a3a8def6f333..974321177dd4b03556c2a2f11930da642045d69e 160000
+--- a/v8
++++ b/v8
+@@ -1 +1 @@
+-Subproject commit fa981ae5db3e07d2c41fad0517a5a3a8def6f333
++Subproject commit 974321177dd4b03556c2a2f11930da642045d69e
