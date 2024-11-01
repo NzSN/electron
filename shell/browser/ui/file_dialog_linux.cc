@@ -86,13 +86,12 @@ class FileChooserDialog : public ui::SelectFileDialog::Listener {
 
   void RunSaveDialogImpl(const DialogSettings& settings) {
     type_ = DialogType::SAVE;
-    ui::SelectFileDialog::FileTypeInfo file_info =
-        GetFilterInfo(settings.filters);
+    file_info_ = GetFilterInfo(settings.filters);
     auto extra_settings = GetExtraSettings(settings);
     dialog_->SelectFile(
         ui::SelectFileDialog::SELECT_SAVEAS_FILE,
         base::UTF8ToUTF16(settings.title), settings.default_path,
-        &file_info /* file_types */, 0 /* file_type_index */,
+        &file_info_ /* file_types */, 0 /* file_type_index */,
         base::FilePath::StringType() /* default_extension */,
         settings.parent_window ? settings.parent_window->GetNativeWindow()
                                : nullptr,
@@ -144,8 +143,29 @@ class FileChooserDialog : public ui::SelectFileDialog::Listener {
     v8::HandleScope scope(isolate);
     auto dict = gin_helper::Dictionary::CreateEmpty(isolate);
     dict.Set("canceled", false);
+  
+    base::FilePath path = ([&]() -> base::FilePath {
+      auto default_path = file.file_path.value();
+      index -= 1;
+      std::string extension = "";
+      if (index >= 0) {
+        DCHECK(static_cast<unsigned long>(index) < file_info_.extensions.size());
+        extension = "." + file_info_.extensions[index][0];
+
+        size_t pos = default_path.rfind(".");
+        if (pos != default_path.npos && 
+            default_path.substr(pos) == extension) {
+          return file.file_path; 
+        } else {
+          return base::FilePath { default_path + extension };
+        }
+      } else {
+        return file.file_path;
+      }
+    })();
+
     if (type_ == DialogType::SAVE) {
-      dict.Set("filePath", file.file_path);
+      dict.Set("filePath", path);
     } else {
       dict.Set("filePaths", std::vector<base::FilePath>{file.file_path});
     }
@@ -201,6 +221,7 @@ class FileChooserDialog : public ui::SelectFileDialog::Listener {
   scoped_refptr<ui::SelectFileDialog> dialog_;
   base::OnceCallback<void(gin_helper::Dictionary)> callback_;
   gin_helper::Promise<gin_helper::Dictionary> promise_;
+  ui::SelectFileDialog::FileTypeInfo file_info_;
 };
 
 }  // namespace
