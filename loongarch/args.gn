@@ -1,0 +1,33 @@
+import("//electron/build/args/release.gn")
+
+enable_hangout_services_extension = true
+enable_swiftshader = true
+angle_enable_swiftshader = true
+enable_swiftshader_vulkan = true
+dawn_use_swiftshader = true
+enable_widevine = false
+fatal_linker_warnings = false
+disable_fieldtrial_testing_config = true
+ffmpeg_branding = "Chrome"
+proprietary_codecs = true
+is_debug = false
+use_gold = false
+is_clang = true
+clang_base_path="/home/jlc/Tools/loongarch_old/llvm-project-18.1.6-1/build"
+clang_version = "18"
+clang_use_chrome_plugins = false
+link_pulseaudio = true
+symbol_level = 0
+treat_warnings_as_errors = false
+use_pulseaudio = true
+use_sysroot = true
+host_cpu = "x64"
+target_cpu = "loong64"
+v8_target_cpu = "loong64"
+use_qt6 = false
+enable_libaom = false
+chrome_pgo_phase = 0
+enable_chromium_prelude = false
+enable_qr_print = false
+rust_sysroot_absolute = "/home/jlc/Tools/loongarch_old/compile_rust/dist"
+rustc_version = "rustc 1.79.0-nightly (ad3496278 2024-07-05) (built from a source tarball)"
