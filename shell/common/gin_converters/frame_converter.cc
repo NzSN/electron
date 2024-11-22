@@ -54,7 +54,7 @@ Converter<gin_helper::AccessorValue<content::RenderFrameHost*>>::ToV8(
   if (rfh_templ.IsEmpty()) {
     v8::EscapableHandleScope inner(isolate);
     v8::Local<v8::ObjectTemplate> local = v8::ObjectTemplate::New(isolate);
-    local->SetInternalFieldCount(2);
+    local->SetInternalFieldCount(3);
     rfh_templ.Reset(isolate, inner.Escape(local));
   }
 
@@ -64,7 +64,8 @@ Converter<gin_helper::AccessorValue<content::RenderFrameHost*>>::ToV8(
           .ToLocalChecked();
 
   rfh_obj->SetInternalField(0, v8::Number::New(isolate, process_id));
-  rfh_obj->SetInternalField(1, v8::Number::New(isolate, routing_id));
+  rfh_obj->SetInternalField(1, v8::Number::New(isolate, 0));
+  rfh_obj->SetInternalField(2, v8::Number::New(isolate, routing_id));
 
   return rfh_obj;
 }
@@ -78,13 +79,13 @@ bool Converter<gin_helper::AccessorValue<content::RenderFrameHost*>>::FromV8(
   if (!ConvertFromV8(isolate, val, &rfh_obj))
     return false;
 
-  if (rfh_obj->InternalFieldCount() != 2)
+  if (rfh_obj->InternalFieldCount() != 3)
     return false;
 
   v8::Local<v8::Value> process_id_wrapper =
       rfh_obj->GetInternalField(0).As<v8::Value>();
   v8::Local<v8::Value> routing_id_wrapper =
-      rfh_obj->GetInternalField(1).As<v8::Value>();
+      rfh_obj->GetInternalField(2).As<v8::Value>();
 
   if (process_id_wrapper.IsEmpty() || !process_id_wrapper->IsNumber() ||
       routing_id_wrapper.IsEmpty() || !routing_id_wrapper->IsNumber())
