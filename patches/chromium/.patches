@@ -134,3 +134,4 @@ increase_partition_allocator_s_upper_bound_to_32gb.patch
 unblock_access_of_mixed_contents.patch
 support_loongarch.patch
 support_loongarch_patch2.patch
+bug_fix_crash_due_to_race_condition_auto_close_dialog.patch

@@ -1,0 +1,20 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NzSN <nzsn0101@gmail.com>
+Date: Fri, 22 Nov 2024 11:48:44 +0800
+Subject: Bug fix: Crash due to race condition auto close dialog
+
+Temporary workaround to prevent crash.
+
+diff --git a/ui/shell_dialogs/execute_select_file_win.cc b/ui/shell_dialogs/execute_select_file_win.cc
+index 9361287ac3411a0f191824455201502dc5136d91..2093aaa73025c382fc1a2ff96fd6f806dd1a5b6c 100644
+--- a/ui/shell_dialogs/execute_select_file_win.cc
++++ b/ui/shell_dialogs/execute_select_file_win.cc
+@@ -33,7 +33,7 @@ namespace {
+ // Stop switch for the AutoCloseDialogEventHandler.
+ BASE_FEATURE(kAutoCloseFileDialogs,
+              "AutoCloseFileDialogs",
+-             base::FEATURE_ENABLED_BY_DEFAULT);
++             base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // RAII wrapper around AutoCloseDialogEventHandler.
+ class ScopedAutoCloseDialogEventHandler {
